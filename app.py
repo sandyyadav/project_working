@@ -1,34 +1,23 @@
+
+from multiprocessing.sharedctypes import Value
 from flask import Flask, render_template, request
+import MySQLdb
+db = MySQLdb.connect("localhost", "root", "", "project")
 import json
 import os
-
+from flask_cors import CORS
 app = Flask(__name__)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
-leaf_apices = {'accuminate': ['n1', 'n2', 'n3', 'n4', 'n5', 'n7', 'n8', 'n9', 'n10', 'n31', 'leaf1', 'leaf2', 'leaf3', 'leaf6', 'leaf7', 'leaf9', 'leaf11', 'leaf12', 'leaf14'],
-               'acute': ['leaf5', 'leaf8', 'leaf10', 'leaf13', 'leaf15'],
-               'obtuse': ['leaf4'],
-               'rounded': ['n6']
-               }
-
-leaf_bases = {'acute': ['leaf5'],
-              'attenuate': ['n4', 'n5'],
-              'auriculate': ['leaf4'],
-              'cordate': ['n1', 'n6', 'n8', 'leaf6', 'leaf11', 'leaf12'],
-              'cuneate': ['n3'],
-              'cunneate': ['n7', 'n31', 'leaf7'],
-              'hastate': ['leaf2'],
-              'oblique': ['leaf1', 'leaf3', 'leaf9', 'leaf10', 'leaf13', 'leaf14', 'leaf15'],
-              'rounded': ['n2', 'n9', 'n10', 'leaf8']}
-
-leaf_margin = {'dantate': ['leaf9'],
-               'doubly_serrate': ['n8', 'leaf1', 'leaf5', 'leaf14'],
-               'entire': ['n2', 'n4', 'n6', 'n7', 'n9', 'n10'],
-               'lobed': ['leaf4'],
-               'serrate': ['n1', 'leaf6', 'leaf8', 'leaf10', 'leaf13'],
-               'serrulate': ['leaf3', 'leaf7', 'leaf11', 'leaf12'],
-               'sinuate': ['n5'],
-               'spinose': ['leaf2'],
-               'undulate': ['n3', 'n31', 'leaf15']}
+cors = CORS(app, resources={r"/foo": {"origins": "http://localhost:port"}})
+CORS(app)
+#generating sql commands
+def create_sql_comand(keys,value):
+    str1="select leaf_division from leaf where "
+    for index in range(0,len(keys)-1):
+        str1=str1+f"{keys[index]}='{value[index]}' and "
+    str1=str1+f"{keys[len(keys)-1]}='{value[len(keys)-1]}'"
+    return str1
 
 
 @app.route("/")
@@ -50,7 +39,7 @@ def about():
 def refer():
     return render_template('refer.html')
 
-
+#getting images path from contained folder
 def getFileNames(folderNames):
     IMAGES_PATH = './static/dataset/'
     answer = {}
@@ -64,37 +53,36 @@ def getFileNames(folderNames):
         fileName = []
     return answer
 
+#recive client server call
 
 @app.route("/predict", methods=["GET", "POST"])
+#@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
 def calc():
     data = request.get_json()
-    # // leaf_apices , leaf_margin, leaf_bases
-    finalArray = []
+    print(data);
+    keys=[]
+    value=[]
     for arr in data:
-        key = [k for k in arr.keys()]
-        key = key[0]
-        if key == 'leaf_margin':
-            finalArray.append(leaf_margin[arr['leaf_margin']])
-        if key == 'leaf_bases':
-            finalArray.append(leaf_bases[arr['leaf_bases']])
-        if(key == 'leaf_apices'):
-            finalArray.append(leaf_apices[arr['leaf_apices']])
-    finalImages = []
-    if len(finalArray) == 0:
-        pass
-    elif len(finalArray) == 1:
-        finalImages = getFileNames(finalArray[0])
-        print(finalArray[0])
-        # pass
-    else:
-        st = set.intersection(*[set(x) for x in finalArray])
-        ans = []
-        for folder in st:
-            ans.append(folder)
-        print(ans)
-        finalImages = getFileNames(ans)
+         key = [k for k in arr.keys()]
+         keys.append(key[0])
+        #  print(key,key[0])
+         value.append(arr[key[0]])
 
-    return json.dumps(finalImages)
-
+    command = create_sql_comand(keys,value)
+    curs = db.cursor()  #create a curser to database for  data extraction
+    print(command)
+    try:
+        curs.execute(command)
+        folder=curs.fetchall() #insert extracted data to folder variable
+        intersection_folder=[]
+        for foll in folder:
+            print(foll[0])
+            intersection_folder.append(foll[0])
+        filenames= getFileNames(intersection_folder)
+        print(filenames)
+        return json.dumps(filenames) #dump data from server to client
+    except:
+        print( "Error: unable to fetch items")
+        return json.dumps({})   #dump data from server to client
 
 app.run(debug=True)
