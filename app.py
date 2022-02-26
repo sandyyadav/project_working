@@ -5,12 +5,11 @@ import MySQLdb
 db = MySQLdb.connect("localhost", "root", "", "project")
 import json
 import os
-from flask_cors import CORS
+from flask_cors import CORS,cross_origin
 app = Flask(__name__)
 app.config['CORS_HEADERS'] = 'Content-Type'
+CORS(app, support_credentials=True)
 
-cors = CORS(app, resources={r"/foo": {"origins": "http://localhost:port"}})
-CORS(app)
 #generating sql commands
 def create_sql_comand(keys,value):
     str1="select leaf_division from leaf where "
@@ -18,26 +17,6 @@ def create_sql_comand(keys,value):
         str1=str1+f"{keys[index]}='{value[index]}' and "
     str1=str1+f"{keys[len(keys)-1]}='{value[len(keys)-1]}'"
     return str1
-
-
-@app.route("/")
-def home():
-    return render_template('index.html')
-
-
-@app.route("/second")
-def secondpage():
-    return render_template('second.html')
-
-
-@app.route("/about")
-def about():
-    return render_template('about.html')
-
-
-@app.route("/refer")
-def refer():
-    return render_template('refer.html')
 
 #getting images path from contained folder
 def getFileNames(folderNames):
@@ -56,17 +35,19 @@ def getFileNames(folderNames):
 #recive client server call
 
 @app.route("/predict", methods=["GET", "POST"])
-#@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
+@cross_origin(supports_credentials=True)
 def calc():
     data = request.get_json()
     print(data);
+    print(type(data));
     keys=[]
     value=[]
+    
     for arr in data:
-         key = [k for k in arr.keys()]
-         keys.append(key[0])
+         keys.append(arr)
         #  print(key,key[0])
-         value.append(arr[key[0]])
+         value.append(data[arr])
+    
 
     command = create_sql_comand(keys,value)
     curs = db.cursor()  #create a curser to database for  data extraction
